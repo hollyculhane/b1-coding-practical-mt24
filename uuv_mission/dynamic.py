@@ -75,8 +75,38 @@ class Mission:
 
     @classmethod
     def from_csv(cls, file_name: str):
-        # You are required to implement this method
-        pass
+        """Create a Mission instance from a CSV file.
+
+        The CSV is expected to contain columns (case-insensitive):
+        'reference', 'cave_height', 'cave_depth'.
+        Returns a Mission with numpy arrays for each column.
+        """
+        try:
+            import pandas as pd
+        except Exception as e:
+            raise RuntimeError("pandas is required to load mission CSV") from e
+
+        try:
+            df = pd.read_csv(file_name)
+        except Exception as e:
+            raise FileNotFoundError(f"Could not read mission file '{file_name}': {e}") from e
+
+        # Normalize column names to allow flexible header formatting
+        col_map = {c.strip().lower(): c for c in df.columns}
+        required = ["reference", "cave_height", "cave_depth"]
+        missing = [r for r in required if r not in col_map]
+        if missing:
+            raise ValueError(f"Missing required columns in mission CSV: {missing}. Found columns: {list(df.columns)}")
+
+        # Extract columns preserving the original names
+        reference = df[col_map["reference"]].to_numpy(dtype=float)
+        cave_height = df[col_map["cave_height"]].to_numpy(dtype=float)
+        cave_depth = df[col_map["cave_depth"]].to_numpy(dtype=float)
+
+        if not (len(reference) == len(cave_height) == len(cave_depth)):
+            raise ValueError("Columns 'reference', 'cave_height' and 'cave_depth' must have the same length")
+
+        return cls(reference, cave_height, cave_depth)
 
 
 class ClosedLoop:
