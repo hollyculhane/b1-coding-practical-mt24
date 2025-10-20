@@ -114,8 +114,7 @@ class ClosedLoop:
         self.plant = plant
         self.controller = controller
 
-    def simulate(self,  mission: Mission, disturbances: np.ndarray) -> Trajectory:
-
+    def simulate(self, mission: Mission, disturbances: np.ndarray) -> Trajectory:
         T = len(mission.reference)
         if len(disturbances) < T:
             raise ValueError("Disturbances must be at least as long as mission duration")
@@ -127,7 +126,17 @@ class ClosedLoop:
         for t in range(T):
             positions[t] = self.plant.get_position()
             observation_t = self.plant.get_depth()
-            # Call your controller here
+            reference_t = mission.reference[t]
+
+            # --- Controller call (inserted here) ---
+            try:
+                # supports named arguments (recommended for your PDController)
+                actions[t] = self.controller.compute(y=observation_t, r=reference_t)
+            except TypeError:
+                # fallback if controller expects positional args
+                actions[t] = self.controller.compute(observation_t, reference_t)
+            # --------------------------------------
+
             self.plant.transition(actions[t], disturbances[t])
 
         return Trajectory(positions)
