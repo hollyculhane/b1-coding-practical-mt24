@@ -1,12 +1,16 @@
 # control.py
 from dataclasses import dataclass
+from typing import Optional
+
 
 @dataclass
 class PDController:
     KP: float = 0.15
     KD: float = 0.6
-    u_min: float | None = None   # optional actuator lower limit
-    u_max: float | None = None   # optional actuator upper limit
+    
+    u_min: Optional[float] = None   # optional actuator lower limit
+    u_max: Optional[float] = None   # optional actuator upper limit
+ 
 
     def __post_init__(self):
         # previous error initialization
@@ -18,7 +22,7 @@ class PDController:
         self.e_prev = 0.0
         self._first_step = True
 
-    def compute(self, y: float, r: float, dt: float | None = None) -> float:
+    def compute(self, y: float, r: float, dt: Optional[float] = None) -> float:
         """
         Compute control action using discrete PD:
             e[t] = r - y
