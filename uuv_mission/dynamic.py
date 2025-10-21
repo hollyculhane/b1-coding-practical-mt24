@@ -108,39 +108,62 @@ class Mission:
 
         return cls(reference, cave_height, cave_depth)
 
-
 class ClosedLoop:
     def __init__(self, plant: Submarine, controller):
         self.plant = plant
         self.controller = controller
 
     def simulate(self, mission: Mission, disturbances: np.ndarray) -> Trajectory:
+        """
+        Run closed-loop simulation using the provided mission and disturbances.
+        Assumes:
+          - mission.reference is an array-like of the target depths
+          - self.plant has methods: reset_state(), get_position(), get_depth(), transition(action, disturbance)
+          - self.controller has methods: compute(y, r, dt=None) and optional reset()
+        """
         T = len(mission.reference)
         if len(disturbances) < T:
             raise ValueError("Disturbances must be at least as long as mission duration")
-        
+
         positions = np.zeros((T, 2))
         actions = np.zeros(T)
         self.plant.reset_state()
 
-        for t in range(T):
-            positions[t] = self.plant.get_position()
-            observation_t = self.plant.get_depth()
-            reference_t = mission.reference[t]
-
-            # --- Controller call (inserted here) ---
+        # Reset controller state if available
+        if hasattr(self.controller, "reset"):
             try:
-                # supports named arguments (recommended for your PDController)
-                actions[t] = self.controller.compute(y=observation_t, r=reference_t)
-            except TypeError:
-                # fallback if controller expects positional args
-                actions[t] = self.controller.compute(observation_t, reference_t)
-            # --------------------------------------
+                self.controller.reset()
+            except Exception:
+                pass
 
+        # Loop through each timestep
+        for t in range(T):
+            # record current position (x,y)
+            positions[t] = self.plant.get_position()
+
+            # current observation (depth)
+            observation_t = float(self.plant.get_depth())
+
+            # current reference
+            reference_t = float(mission.reference[t])
+
+            # Compute control action using controller API
+            try:
+                # preferred: named args (works with PDController)
+                u_t = self.controller.compute(y=observation_t, r=reference_t, dt=None)
+            except TypeError:
+                # fallback: positional args
+                u_t = self.controller.compute(observation_t, reference_t)
+
+            # log and apply action
+            actions[t] = float(u_t)
             self.plant.transition(actions[t], disturbances[t])
 
-        return Trajectory(positions)
-        
+        traj = Trajectory(positions)
+        traj.control = actions  # attach control history
+        return traj
+
     def simulate_with_random_disturbances(self, mission: Mission, variance: float = 0.5) -> Trajectory:
         disturbances = np.random.normal(0, variance, len(mission.reference))
         return self.simulate(mission, disturbances)
+
